@@ -353,6 +353,8 @@ class ContinuousGeneralizedSeries(RingElement):
         if val < 0 :
             tail = tail2*x**(-val)
             exp += val
+        else:
+            tail = tail2
         
         p = parent.tail_ring()(tail)
 
