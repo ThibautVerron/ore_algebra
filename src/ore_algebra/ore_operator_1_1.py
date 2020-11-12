@@ -1424,7 +1424,7 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
         """
         raise NotImplementedError # abstract
 
-    def global_integral_basis(self, places=None, infolevel=0, **args):
+    def global_integral_basis(self, basis=None, places=None, infolevel=0, **args):
         r"""
         # TODO
 
@@ -1459,7 +1459,6 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
         if len(places) == 0 :
             return [self.parent()(1)]
             
-        res = None
         for p in places :
             if len(p) == 1 :
                 x = p
@@ -1467,11 +1466,11 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
             else:
                 x, val_fct, raise_val_fct = p
                 
-            res = self.local_integral_basis(x,basis=res,
+            basis = self.local_integral_basis(x,basis=basis,
                                             val_fct = val_fct,
                                             raise_val_fct = raise_val_fct,
                                             infolevel=infolevel) 
-        return res
+        return basis
 
 
 
