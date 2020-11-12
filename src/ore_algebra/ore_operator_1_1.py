@@ -2833,7 +2833,8 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         x = ore.base_ring().gen()
         FF = NumberField(f,"xi")
         xi = FF.gen()
-        ore_ext = ore.change_ring(ore.base_ring().fraction_field())
+        pol_ext = ore.base_ring().change_ring(FF)
+        ore_ext = ore.change_ring(pol_ext.fraction_field())
         reloc = ore_ext([c(x=x+xi) for c in self.coefficients(sparse=False)])
         if prec is None:
             sols = reloc.generalized_series_solutions()
@@ -2866,13 +2867,13 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
                                 iota=iota,cutoff=1):
                             cands.add(t)
 
-                mtx = [[] for i in range(len(ops))]
+                mtx = [[0 for j in range(len(sols))] for i in range(len(ops))]
                 for t in cands:
                     if infolevel >= 2:
                         print(" [raise_val_fct] Processing term x^({}) log(x)^{}".format(t[1],t[0]))
                     for i in range(len(ops)):
-                        for s in ss[i]:
-                            mtx[i].append(s.coefficient(*t))
+                        for j in range(len(sols)):
+                            mtx[i][j] = ss[i][j].coefficient(*t)
                     if infolevel >= 2:
                         print(" [raise_val_fct] Current matrix:\n{}".format(mtx))
 
