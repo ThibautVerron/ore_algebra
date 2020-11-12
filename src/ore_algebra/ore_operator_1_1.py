@@ -2879,7 +2879,7 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
 
                 M = matrix(mtx)
                 K = M.left_kernel().basis()
-                if K:
+                if K and K[0][-1] != 0:
                     return (1/K[0][-1])*K[0]
                 else:
                     return None
