@@ -1408,12 +1408,12 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
                     print1(" [local] Relation found: {}".format(alpha))
 
                     alpha_rep = [None for i in range(d+1)]
-                    if deg > 1: # Should be harmless even without, but okay
-                        for i in range(d+1):
-                            alpha_rep[i] = sum(alpha[i][j]*Fvar**j for j in range(deg))
-                    else:
-                        for i in range(d+1):
-                            alpha_rep[i] = alpha[i]
+                    # if deg > 1: # Should be harmless even without, but okay
+                    for i in range(d+1):
+                        alpha_rep[i] = sum(alpha[i][j]*Fvar**j for j in range(deg))
+                    # else:
+                    #     for i in range(d+1):
+                    #         alpha_rep[i] = alpha[i]
                     print2(" [local] In base field: {}".format(alpha_rep))
                     # __import__("pdb").set_trace()
                     
