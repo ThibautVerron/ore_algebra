@@ -2867,19 +2867,19 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
                                 iota=iota,cutoff=1):
                             cands.add(t)
 
-                mtx = [[0 for j in range(len(sols))] for i in range(len(ops))]
+                mtx = [[] for i in range(len(ops))]
                 for t in cands:
                     if infolevel >= 2:
                         print(" [raise_val_fct] Processing term x^({}) log(x)^{}".format(t[1],t[0]))
                     for i in range(len(ops)):
                         for j in range(len(sols)):
-                            mtx[i][j] = ss[i][j].coefficient(*t)
+                            mtx[i].append(ss[i][j].coefficient(*t))
                     if infolevel >= 2:
                         print(" [raise_val_fct] Current matrix:\n{}".format(mtx))
 
                 M = matrix(mtx)
                 K = M.left_kernel().basis()
-                if K and K[0][-1] != 0:
+                if K: 
                     return (1/K[0][-1])*K[0]
                 else:
                     return None
