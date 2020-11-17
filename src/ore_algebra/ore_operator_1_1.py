@@ -1715,7 +1715,11 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
 
         A = self.parent(); K = A.base_ring().fraction_field(); A = A.change_ring(K); R = K['Y']
         if solver == None:
-            solver = A._solver(K)
+            if clear_denominators:
+                solver = A._solver(K)
+            else:
+                solver = A._solver(K.ring())
+                
 
         if self == A.one() or a == K.gen():
             return self
@@ -1737,8 +1741,11 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
 
         # derivative of a
         Da = -minpoly.map_coefficients(lambda p: p.derivative())
+        print(Da)
         Da *= minpoly.xgcd(minpoly.derivative())[2]
+        print(Da)
         Da = Da % minpoly
+        print(Da)
 
         if clear_denominators:
             # self's coefficients with x replaced by a, denominators cleared, and reduced by minpoly.
@@ -1746,7 +1753,7 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
             red = [ R(p.numerator().coefficients(sparse=False)) for p in self.numerator().change_ring(K).coefficients(sparse=False) ]
             lc = -minpoly.xgcd(red[-1])[2]
             red = [ (red[i]*lc) % minpoly for i in range(r) ]
-            lcden = R.one()
+            lc = R.one()
         else:
             red = []
             for p in self.change_ring(K).coefficients(sparse=False):
@@ -1754,7 +1761,7 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
                 den = minpoly.xgcd(R(p.denominator()))[2]
                 # if (num*den).degree() > 0 : raise ValueError("Debug here")
                 red.append((num*den)%minpoly)
-            lcden = -minpoly.xgcd(red[-1])[2]
+            lc = -red[-1]
             red = red[:-1]
             
         from sage.matrix.constructor import Matrix
@@ -1768,14 +1775,17 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
             next = [ (p.map_coefficients(lambda q: q.derivative()) + p.derivative()*Da) % minpoly for p in Dkfa ]
             for i in range(r - 1):
                 next[i + 1] += (Dkfa[i]*Da) % minpoly
-            for i in range(r):
-                next[i] += (Dkfa[-1]*lcden*red[i]*Da) % minpoly
+            if Dkfa[-1] % lc == 0:
+                quo = Dkfa[-1]//lc
+                for i in range(r):
+                    next[i] += (quo*red[i]*Da) % minpoly
             Dkfa = next
 
             # check for linear relations
             mat.append([ q for p in Dkfa for q in p.padded_list(d) ])
             sol = solver(Matrix(K, mat).transpose())
 
+        print(sol[0])
         return self.parent()(list(sol[0]))
 
     def power_series_solutions(self, n=5):
