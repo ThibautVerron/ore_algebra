@@ -1683,8 +1683,8 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
            
         """
         return self*self.parent().gen()
-
-    def annihilator_of_composition(self, a, solver=None):
+    
+    def annihilator_of_composition(self, a, solver=None, clear_denominators=True):
         r"""
         Returns an operator `L` which annihilates all the functions `f(a(x))`
         where `f` runs through the functions annihilated by ``self``.
@@ -1740,25 +1740,36 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         Da *= minpoly.xgcd(minpoly.derivative())[2]
         Da = Da % minpoly
 
-        # self's coefficients with x replaced by a, denominators cleared, and reduced by minpoly.
-        # have: (D^r f)(a) == sum( red[i]*(D^i f)a, i=0..len(red)-1 ) and each red[i] is a poly in Y of deg <= d.
-        red = [ R(p.numerator().coefficients(sparse=False)) for p in self.numerator().change_ring(K).coefficients(sparse=False) ]
-        lc = -minpoly.xgcd(red[-1])[2]
-        red = [ (red[i]*lc) % minpoly for i in range(r) ]
-
+        if clear_denominators:
+            # self's coefficients with x replaced by a, denominators cleared, and reduced by minpoly.
+            # have: (D^r f)(a) == sum( red[i]*(D^i f)a, i=0..len(red)-1 ) and each red[i] is a poly in Y of deg <= d.
+            red = [ R(p.numerator().coefficients(sparse=False)) for p in self.numerator().change_ring(K).coefficients(sparse=False) ]
+            lc = -minpoly.xgcd(red[-1])[2]
+            red = [ (red[i]*lc) % minpoly for i in range(r) ]
+            lcden = R.one()
+        else:
+            red = []
+            for p in self.change_ring(K).coefficients(sparse=False):
+                num = R(p.numerator().coefficients(sparse=False))
+                den = minpoly.xgcd(R(p.denominator()))[2]
+                # if (num*den).degree() > 0 : raise ValueError("Debug here")
+                red.append((num*den)%minpoly)
+            lcden = -minpoly.xgcd(red[-1])[2]
+            red = red[:-1]
+            
         from sage.matrix.constructor import Matrix
         Dkfa = [R.zero() for i in range(r)] # Dkfa[i] == coeff of (D^i f)(a) in D^k (f(a))
         Dkfa[0] = R.one()
         mat = [[ q for p in Dkfa for q in p.padded_list(d) ]]; sol = []
-
+    
         while len(sol) == 0:
-
+                
             # compute coeffs of (k+1)th derivative
             next = [ (p.map_coefficients(lambda q: q.derivative()) + p.derivative()*Da) % minpoly for p in Dkfa ]
             for i in range(r - 1):
                 next[i + 1] += (Dkfa[i]*Da) % minpoly
             for i in range(r):
-                next[i] += (Dkfa[-1]*red[i]*Da) % minpoly
+                next[i] += (Dkfa[-1]*lcden*red[i]*Da) % minpoly
             Dkfa = next
 
             # check for linear relations
