@@ -1384,6 +1384,7 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
         DD = ore.gen()
         if basis is None: basis = [DD**i for i in range(r)]
 
+        x = x.numerator()
         k = ore.base_ring()
 
         F = x.parent().base_ring()
@@ -1684,7 +1685,7 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         """
         return self*self.parent().gen()
 
-    def annihilator_of_composition(self, a, solver=None):
+    def annihilator_of_composition(self, a, solver=None, output_matrix=False):
         r"""
         Returns an operator `L` which annihilates all the functions `f(a(x))`
         where `f` runs through the functions annihilated by ``self``.
@@ -1765,7 +1766,12 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
             mat.append([ q for p in Dkfa for q in p.padded_list(d) ])
             sol = solver(Matrix(K, mat).transpose())
 
-        return self.parent()(list(sol[0]))
+        LL = self.parent()(list(sol[0]))
+        if output_matrix:
+            conv = Matrix(K,mat[:-1]).transpose().inverse()
+            return LL,conv
+        else:
+            return LL
 
     def power_series_solutions(self, n=5):
         r"""
@@ -2825,10 +2831,16 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         r""""""
         # TODO doc
         ore = self.parent()
-        x = ore.base_ring().gen()
-        FF = NumberField(f,"xi")
+        base = ore.base_ring()
+        # Next lines because there is no change_ring() method for a fraction
+        # field, and no ring() method for a polynomial ring...
+        if base.is_field():
+            base = base.ring()
+            # ore = ore.change_ring(base)
+        x = base.gen()
+        FF = NumberField(f.numerator(),"xi")
         xi = FF.gen()
-        pol_ext = ore.base_ring().change_ring(FF)
+        pol_ext = base.change_ring(FF)
         ore_ext = ore.change_ring(pol_ext.fraction_field())
         reloc = ore_ext([c(x=x+xi) for c in self.coefficients(sparse=False)])
         if prec is None:
