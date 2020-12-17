@@ -22,6 +22,7 @@ one generator.
 from __future__ import absolute_import, division, print_function
 
 from functools import reduce
+from random import randint
 
 import sage.functions.log as symbolic_log
 
@@ -1350,14 +1351,18 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
         """
         raise NotImplementedError # abstract
 
-    def raise_value(self, basis, x, dim=0):
+    def raise_value(self, basis, x, dim=0, infolevel = 0):
         r"""
-        Return a linear combination of the elements of basis which has higher value_function than the last element of basis. The last coefficient in the linear combination should be 1.
+        Return a linear combination of the elements of basis which has higher
+        value_function than the last element of basis. The last coefficient in
+        the linear combination should be 1.
 
-        dim should be set to the dimension of the ambient vector space, in case that dimension is larger than the length of basis.
+        dim should be set to the dimension of the ambient vector space, in case
+        that dimension is larger than the length of basis.
 
         # TODO: Rephrase...
         # TODO: Does this function really need to be provided, or can it be obtained with value_function + something?
+
         """
         raise NotImplementedError # abstract
 
@@ -1402,7 +1407,7 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
             print1(" [local] Basis element after normalizing: {}".format(res[d]))
             done = False
             while not done:
-                alpha = raise_val_fct(res,x,r,infolevel=infolevel)
+                alpha = raise_val_fct(res,place=x,dim=r,infolevel=infolevel)
                 if alpha is None:
                     done = True
                 else:
@@ -1410,12 +1415,13 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
 
                     alpha_rep = [None for i in range(d+1)]
                     for i in range(d+1):
+                        # This is python, so sum instead of add
                         alpha_rep[i] = sum(alpha[i][j]*Fvar**j for j in range(deg))
                     print2(" [local] In base field: {}".format(alpha_rep))
                     # __import__("pdb").set_trace()
                     
                     res[d] = sum(alpha_rep[i]*res[i] for i in range(d+1))
-                    res[d] = x**(- val_fct(res[d]))*res[d]
+                    res[d] = x**(- val_fct(res[d],x))*res[d]
                     print1(" [local] Basis element after combination: {}".format(res[d]))
         return res
 
@@ -1457,8 +1463,13 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
         if places is None:
             places = self.find_candidate_places(infolevel=infolevel,**args)
 
+        r = self.order()
+        ore = self.parent()
+        DD = ore.gen()
+        if basis is None: basis = [DD**i for i in range(r)]
+
         if len(places) == 0 :
-            return [self.parent()(1)]
+            return basis
             
         for p in places :
             if len(p) == 1 :
@@ -2827,37 +2838,48 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         return sol[0]["value"]
 
     
-    def _make_valuation_place(self, f, iota=None, prec=None, infolevel=0):
+    def _make_valuation_place(self, f, sols=None, iota=None, prec=None, infolevel=0):
         r""""""
         # TODO doc
         ore = self.parent()
         base = ore.base_ring()
         # Next lines because there is no change_ring() method for a fraction
         # field, and no ring() method for a polynomial ring...
-        if base.is_field():
-            base = base.ring()
-            # ore = ore.change_ring(base)
-        x = base.gen()
-        FF = NumberField(f.numerator(),"xi")
-        xi = FF.gen()
-        pol_ext = base.change_ring(FF)
-        ore_ext = ore.change_ring(pol_ext.fraction_field())
-        reloc = ore_ext([c(x=x+xi) for c in self.coefficients(sparse=False)])
-        if prec is None:
-            sols = reloc.generalized_series_solutions()
+        if sols is None:
+            if base.is_field():
+                base = base.ring()
+                # ore = ore.change_ring(base)
+            x = base.gen()
+            # Generate a unique (?) name for the number field element
+            # There is certainly a better way of doing it
+            ind = randint(1,10000)
+            FF = NumberField(f.numerator(),"xi{}".format(ind))
+            xi = FF.gen()
+            pol_ext = base.change_ring(FF)
+            ore_ext = ore.change_ring(pol_ext.fraction_field())
+            reloc = ore_ext([c(x=x+xi) for c in self.coefficients(sparse=False)])
+            if prec is None:
+                sols = reloc.generalized_series_solutions()
+            else:
+                sols = reloc.generalized_series_solutions(prec)
         else:
-            sols = reloc.generalized_series_solutions(prec)
-                
-
+            FF = sols[0].base_ring()
+            x = sols[0].parent().gen()
+            xi = FF.gen()
+            pol_ext = base.change_ring(FF)
+            ore_ext = ore.change_ring(pol_ext.fraction_field())
+            
         # Capture the objects
         def get_functions(xi,sols,x,ore_ext):
             # In both functions the second argument `place` is ignored because
-            # captured
+            # captured (through xi and sols)
             # TODO: Should we also capture iota? In principle there is no reason
             # to change the iota in the global scope between invokations...
-            def val_fct(op,place=None):
+            def val_fct(op,place=None,infolevel=0):
                 op = ore_ext([c(x=x+xi)
                               for c in op.coefficients(sparse=False)])
+                if infolevel == 1:
+                    print([op(s) for s in sols])
                 vect = [op(s).valuation(iota=iota) for s in sols]
                 return min(vect)
             def raise_val_fct(ops,place=None,dim=None,infolevel=0):
@@ -2896,12 +2918,12 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         val_fct, raise_val_fct = get_functions(xi,sols,x,ore_ext)
         return f,val_fct, raise_val_fct
 
-    def find_candidate_places(self, infolevel=0, iota=None):
+    def find_candidate_places(self, infolevel=0, iota=None, prec=5):
         lr = self.coefficients()[-1]
         fact = list(lr.factor())
         places = []
         for f,m in fact:
-            places.append(self._make_valuation_place(f,prec=m+1,
+            places.append(self._make_valuation_place(f,prec=prec,
                                                      infolevel=infolevel,
                                                      iota=None))
         return places
@@ -2910,9 +2932,9 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         val = self._make_valuation_place(place,iota=iota)[1]
         return val(op)
 
-    def raise_value(self, basis, place, dim, iota=None):
+    def raise_value(self, basis, place, dim, iota=None, infolevel=0):
         fct = self._make_valuation_place(place,iota=iota)[2]
-        return fct(basis, place, dim)
+        return fct(basis, place, dim, infolevel = infolevel)
 
     
     
@@ -4052,7 +4074,7 @@ class UnivariateRecurrenceOperatorOverUnivariateRing(UnivariateOreOperatorOverUn
         return res
     
     
-    def find_candidate_places(self, Zmax = None, infolevel=0):
+    def find_candidate_places(self, Zmax = None, infolevel=0, prec=5):
         # TODO doc
 
         # Helpers
@@ -4105,7 +4127,7 @@ class UnivariateRecurrenceOperatorOverUnivariateRing(UnivariateOreOperatorOverUn
                 # TODO: Should we also update Nmin if Zmax < Nmax?
             print1("Nmin={} Nmax={}".format(Nmin,Nmax))
 
-            places += self._make_valuation_places(f, Nmin, Nmax, prec=m+1,
+            places += self._make_valuation_places(f, Nmin, Nmax, prec=prec,
                                                   infolevel=infolevel)
             # TODO: is +1 needed?
 
@@ -4115,7 +4137,7 @@ class UnivariateRecurrenceOperatorOverUnivariateRing(UnivariateOreOperatorOverUn
         val = self._make_valuation_places(place,0,0)[0][1]
         return val(op)
 
-    def raise_value(self, basis, place, dim):
+    def raise_value(self, basis, place, dim, infolevel = 0):
         fct = self._make_valuation_places(place,0,0)[0][2]
         return fct(basis, place, dim)
     
