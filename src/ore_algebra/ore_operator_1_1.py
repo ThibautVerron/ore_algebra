@@ -3012,7 +3012,93 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         fct = self._make_valuation_place(place,iota=iota)[2]
         return fct(basis, place, dim, infolevel = infolevel)
 
+    def local_integral_basis_at_infinity(self, basis=None, iota=None
+                                         infolevel=0):
+        x = self.base_ring().gen()
+        Linf, conv = L.change_of_variables(1/x)
+        f,v,rv = Linf._make_valuation_place(x, iota=iota)
+        if basis:
+            basis = [conv(b) for b in basis]
+        wwinf = Linf.local_integral_basis(f, val_fct=v, raise_val_fct=rv, basis=basis, infolevel=infolevel)
+        vv = [conv(w) for w in wwinf]
+        return vv
+
+    def _normalize_basis_at_infinity(self,ww,vv):
+        r = L.order()
+        x = L.base_ring().gen()
+        from sage.matrix.constructor import matrix
+
+        def pad_list(L,d):
+            # add 0s to reach length d
+            return L+[0]*(d - len(L))
+        
+        def tau_value(f):
+            # smallest t st x^t f can be evaluated at infinity
+            if f == 0:
+                return Infinity
+            if f in QQ:
+                return 0
+            else:
+                num = f.numerator().degree()
+                den = f.denominator().degree()
+                return den - num
+
+        def eval_inf(f):
+            # value of f at infinity
+            if f in QQ:
+                return f
+            else:
+                if f.denominator().degree() > f.numerator().degree():
+                    return 0
+                elif f.denominator().degree() < f.numerator().degree():
+                    raise ZeroDivisionError
+                else:
+                    return f.numerator().leading_coefficient() / f.denominator().leading_coefficient()
+
+        D_to_vv = matrix([pad_list(b.coefficients(sparse=False),r)
+                          for b in vv]).inverse()
+
+        init = True
+        while init or B.determinant() == 0:
+            if init:
+                init = False
+            else:
+                a = B.kernel().basis()[0]
+                l = min([i for i in range(r) if a[i] != 0],
+                        key = lambda i: tau[i]);
+                ww[l] = sum(a[i]*x^(tau[i]-tau[l])*ww[i] for i in range(r))
+            
+            ww_to_D = matrix([pad_list(b.coefficients(sparse=False),r)
+                              for b in ww])
+            mm = ww_to_D * D_to_vv
+            tau = [min(tau_value(m) for m in row) for row in mm.rows()]
+            B = matrix([[eval_inf(x^tau[i]*mm[i,j]) for j in range(r)]
+                    for i in range(r)])
+            
+        return ww, tau
     
+    
+    def normal_global_integral_basis(self,basis=None, iota=None, infolevel=0):
+        ww = self.global_integral_basis(basis=basis,iota=iota, infolevel=infolevel)
+        vv = self.local_integral_basis_at_infinity(iota=iota, infolevel=infolevel)
+
+        ww, _ = self._normalize_basis_at_infinity(vv,ww)
+        return ww
+        
+    def quasiconstants(self, iota=None, infolevel=0):
+        ww = self.global_integral_basis(iota=iota, infolevel=infolevel)
+        vv = self.local_integral_basis_at_infinity(iota=iota, infolevel=infolevel)
+
+        ww, tau = self._normalize_basis_at_infinity(vv,ww)
+        x = self.base_ring().gen()
+        res = []
+        for i in range(len(ww)):
+            if tau[i] >= 0:
+                for j in range(tau[i]+1)
+                res.append(x^tau[i] * ww[i])
+        return res
+        
+        
     
     
 #############################################################################################################
