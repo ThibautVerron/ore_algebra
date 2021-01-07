@@ -1473,7 +1473,7 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
             
         for p in places :
             if len(p) == 1 :
-                x = p
+                x = p[0]
                 val_fct = raise_val_fct = None
             else:
                 x, val_fct, raise_val_fct = p
@@ -2919,7 +2919,7 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         return f,val_fct, raise_val_fct
 
     def find_candidate_places(self, infolevel=0, iota=None, prec=5):
-        lr = self.coefficients()[-1]
+        lr = self.coefficients()[-1]*self.denominator()
         fact = list(lr.factor())
         places = []
         for f,m in fact:
