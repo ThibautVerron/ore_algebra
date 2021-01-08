@@ -3001,9 +3001,9 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         fact = list(lr.factor())
         places = []
         for f,m in fact:
-            places.append(self._make_valuation_place(f,prec=prec,
-                                                     infolevel=infolevel,
-                                                     iota=None))
+            if f.degree() > 0:
+                places.append(self._make_valuation_place(
+                    f,prec=prec, infolevel=infolevel, iota=None))
         return places
 
     def value_function(self, op, place, iota=None):
@@ -3074,11 +3074,11 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
             ww_to_D = matrix([pad_list(b.coefficients(sparse=False),r)
                               for b in ww])
             mm = ww_to_D * D_to_vv
-            print(mm)
+            # print(mm)
             tau = [min(tau_value(m) for m in row) for row in mm.rows()]
             B = matrix([[eval_inf(x**tau[i]*mm[i,j]) for j in range(r)]
                     for i in range(r)])
-            print(tau)
+            # print(tau)
             
         return ww, tau
     
