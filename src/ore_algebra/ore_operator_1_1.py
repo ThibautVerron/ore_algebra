@@ -31,6 +31,7 @@ from sage.arith.all import gcd, lcm, nth_prime, srange
 from sage.functions.all import floor
 from sage.matrix.constructor import matrix
 from sage.misc.all import prod, union
+from sage.misc.cachefunc import cached_method
 from sage.rings.fraction_field import FractionField_generic
 from sage.rings.rational_field import QQ
 from sage.rings.integer_ring import ZZ
@@ -1431,6 +1432,7 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
         """
         raise NotImplementedError # abstract
 
+    # @cached_method
     def global_integral_basis(self, basis=None, places=None, infolevel=0, **args):
         r"""
         # TODO
@@ -3012,10 +3014,11 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         fct = self._make_valuation_place(place,iota=iota)[2]
         return fct(basis, place, dim, infolevel = infolevel)
 
-    def local_integral_basis_at_infinity(self, basis=None, iota=None
+    # @cached_method
+    def local_integral_basis_at_infinity(self, basis=None, iota=None,
                                          infolevel=0):
         x = self.base_ring().gen()
-        Linf, conv = L.change_of_variables(1/x)
+        Linf, conv = self.change_of_variables(1/x)
         f,v,rv = Linf._make_valuation_place(x, iota=iota)
         if basis:
             basis = [conv(b) for b in basis]
@@ -3024,18 +3027,18 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         return vv
 
     def _normalize_basis_at_infinity(self,ww,vv):
-        r = L.order()
-        x = L.base_ring().gen()
+        r = self.order()
+        x = self.base_ring().gen()
         from sage.matrix.constructor import matrix
 
-        def pad_list(L,d):
+        def pad_list(ll,d):
             # add 0s to reach length d
-            return L+[0]*(d - len(L))
+            return ll+[0]*(d - len(ll))
         
         def tau_value(f):
             # smallest t st x^t f can be evaluated at infinity
             if f == 0:
-                return Infinity
+                return infinity
             if f in QQ:
                 return 0
             else:
@@ -3066,14 +3069,16 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
                 a = B.kernel().basis()[0]
                 l = min([i for i in range(r) if a[i] != 0],
                         key = lambda i: tau[i]);
-                ww[l] = sum(a[i]*x^(tau[i]-tau[l])*ww[i] for i in range(r))
+                ww[l] = sum(a[i]*x**(tau[i]-tau[l])*ww[i] for i in range(r))
             
             ww_to_D = matrix([pad_list(b.coefficients(sparse=False),r)
                               for b in ww])
             mm = ww_to_D * D_to_vv
+            print(mm)
             tau = [min(tau_value(m) for m in row) for row in mm.rows()]
-            B = matrix([[eval_inf(x^tau[i]*mm[i,j]) for j in range(r)]
+            B = matrix([[eval_inf(x**tau[i]*mm[i,j]) for j in range(r)]
                     for i in range(r)])
+            print(tau)
             
         return ww, tau
     
@@ -3082,20 +3087,20 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         ww = self.global_integral_basis(basis=basis,iota=iota, infolevel=infolevel)
         vv = self.local_integral_basis_at_infinity(iota=iota, infolevel=infolevel)
 
-        ww, _ = self._normalize_basis_at_infinity(vv,ww)
+        ww, _ = self._normalize_basis_at_infinity(ww,vv)
         return ww
         
     def quasiconstants(self, iota=None, infolevel=0):
         ww = self.global_integral_basis(iota=iota, infolevel=infolevel)
         vv = self.local_integral_basis_at_infinity(iota=iota, infolevel=infolevel)
 
-        ww, tau = self._normalize_basis_at_infinity(vv,ww)
+        ww, tau = self._normalize_basis_at_infinity(ww,vv)
         x = self.base_ring().gen()
         res = []
         for i in range(len(ww)):
             if tau[i] >= 0:
-                for j in range(tau[i]+1)
-                res.append(x^tau[i] * ww[i])
+                for j in range(tau[i]+1):
+                    res.append(x**j * ww[i])
         return res
         
         
