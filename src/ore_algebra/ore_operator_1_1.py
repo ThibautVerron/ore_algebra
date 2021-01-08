@@ -1734,18 +1734,19 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
             sage: print(LL)
             -x^3*Dx^2 - 2*x^2*Dx - 1
             sage: print(conv(Dx))
-            -1/x^2*Dx
+            -x^2*Dx
             sage: print(conv(x*Dx))
-            -1/x^3*Dx
+            -x*Dx
             sage: print(conv(conv(x*Dx))) # identity since 1/1/x = 1
             x*Dx
             sage: LL, conv = L.change_of_variables(1+x^2)
             sage: print(LL)
             (-x^3 - x)*Dx^2 + (x^2 + 1)*Dx - 4*x^3
             sage: print(conv(Dx))
-            (1/(2*x^2 + 2))*Dx
+            1/(2*x)*Dx
             sage: print(conv(x*Dx))
-            1/2*Dx
+            ((x^2 + 1)/(2*x))*Dx
+        
         """
         
         A = self.parent(); K = A.base_ring().fraction_field(); A = A.change_ring(K); R = K['Y']
@@ -1820,18 +1821,20 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
             conv_mtx = Matrix(K,mat[:-1]).transpose().inverse()
             def make_conv_fun(self,conv_mtx,a,Dif):
                 def conv_fun(A):
-                    l = conv_mtx.nrows()
+                    l = conv_mtx.ncols()
                     A = A.quo_rem(self)[1]
+                    ring = A.parent().base_ring().fraction_field()
+                    # Dif = Dif.change_ring(ring)
                     coefs = (A.coefficients(sparse=False)+[0]*l)[:l]
-                    return Dif([c(a) for c in (conv_mtx*vector(coefs)).list()])
+                    coefs = [ring(c)(a) for c in coefs]
+                    return Dif((conv_mtx*vector(coefs)).list())
                 return conv_fun
             conv_fun = make_conv_fun(self,conv_mtx,a,A)
         else:
             conv_fun = None
         return LL,conv_fun
-        
 
-    def annihilator_of_composition(self, a, solver=None, output_matrix=False):
+    def annihilator_of_composition(self, a, solver=None):
         r"""
         Returns an operator `L` which annihilates all the functions `f(a(x))`
         where `f` runs through the functions annihilated by ``self``.
