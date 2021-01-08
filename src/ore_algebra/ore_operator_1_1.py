@@ -1432,7 +1432,7 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
         """
         raise NotImplementedError # abstract
 
-    # @cached_method
+    @cached_method
     def global_integral_basis(self, basis=None, places=None, infolevel=0, **args):
         r"""
         # TODO
@@ -3017,7 +3017,7 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         fct = self._make_valuation_place(place,iota=iota)[2]
         return fct(basis, place, dim, infolevel = infolevel)
 
-    # @cached_method
+    @cached_method
     def local_integral_basis_at_infinity(self, basis=None, iota=None,
                                          infolevel=0):
         x = self.base_ring().gen()
