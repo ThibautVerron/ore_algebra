@@ -1367,12 +1367,27 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
         """
         raise NotImplementedError # abstract
 
-    def local_integral_basis(self, x, basis=None, val_fct=None, raise_val_fct=None,
-                             infolevel=0):
+    def _normalize_local_integral_basis_args(
+            self,x,basis=None, val_fct=None, raise_val_fct=None,
+            infolevel=0,**args):
+        if basis:
+            basis = tuple(basis)
+        args = list(args.items())
+        args.sort()
+        args = tuple(args)
+        return (x,basis,args)
+
+    @cached_method(key=_normalize_local_integral_basis_args)
+    def local_integral_basis(
+            self, x, basis=None, val_fct=None, raise_val_fct=None,
+            infolevel=0, **args):
         r"""
         # TODO: Copy/adapt documentation for interface
 
         Note: we take a basis and guarantee that the output is integral wherever the basis was integral
+
+        The args are only useful for separating different inputs (e.g. with
+        different functions) for the cache
         """
 
         # Helpers
@@ -1431,8 +1446,22 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
         # TODO
         """
         raise NotImplementedError # abstract
+    
+    def _normalize_global_integral_basis_args(
+            self,x,basis=None, places=None, 
+            infolevel=0,**args):
+        if basis:
+            basis = tuple(basis)
+        if places:
+            places = [p[0] for p in places]
+            places.sort()
+            places = tuple(places)
+        args = list(args.items())
+        args.sort()
+        args = tuple(args)
+        return (x,basis,places,args)
 
-    @cached_method
+    @cached_method(key=_normalize_global_integral_basis_args)
     def global_integral_basis(self, basis=None, places=None, infolevel=0, **args):
         r"""
         # TODO
@@ -1483,7 +1512,7 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
             basis = self.local_integral_basis(x,basis=basis,
                                             val_fct = val_fct,
                                             raise_val_fct = raise_val_fct,
-                                            infolevel=infolevel) 
+                                            infolevel=infolevel, **args) 
         return basis
 
 
