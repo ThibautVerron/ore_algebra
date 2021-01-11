@@ -16,6 +16,8 @@ Auxiliary functions
 
 from __future__ import absolute_import
 
+from warnings import warn
+
 from sage.structure.element import Element, RingElement, canonical_coercion, parent
 from sage.arith.all import gcd, lcm, previous_prime as pp
 from sage.matrix.constructor import Matrix
@@ -537,7 +539,16 @@ def generalized_series_term_valuation(z,i,j,iota=None):
     r"""
     Given z, i, j, return the valuation of the term x^(z+i) log(x)^j
     """
-    z = QQbar(z) # This should probably be done long before
+    try:
+        z = QQbar(z)
+    except ValueError:
+        # FIXME: It would be great if we could show the warning once per
+        # relevant field
+        warn("Choosing an arbitrary complex embedding for {}.\n"
+             "To avoid it, extend the coefficients of the base ring."
+             .format(z.parent()),
+             RuntimeWarning)
+        z = z.parent().embeddings(QQbar)[0](z)
     if iota is None:
         iota = generalized_series_default_iota
     return ZZ(z+i-iota(z,j))

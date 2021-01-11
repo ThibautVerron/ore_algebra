@@ -23,6 +23,7 @@ from __future__ import absolute_import, division, print_function
 
 from functools import reduce
 from random import randint
+# from warnings import resetwarnings
 
 import sage.functions.log as symbolic_log
 
@@ -1394,6 +1395,7 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
         print1 = print if infolevel >= 1 else lambda *a, **k: None
         print2 = print if infolevel >= 2 else lambda *a, **k: None
         print3 = print if infolevel >= 3 else lambda *a, **k: None
+        # resetwarnings()
 
         print1(" [local] Computing local basis at {}".format(x))
         
