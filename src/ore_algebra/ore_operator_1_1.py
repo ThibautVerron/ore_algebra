@@ -1448,7 +1448,7 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
         raise NotImplementedError # abstract
     
     def _normalize_global_integral_basis_args(
-            self,x,basis=None, places=None, 
+            self,basis=None, places=None, 
             infolevel=0,**args):
         if basis:
             basis = tuple(basis)
@@ -1459,7 +1459,7 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
         args = list(args.items())
         args.sort()
         args = tuple(args)
-        return (x,basis,places,args)
+        return (basis,places,args)
 
     @cached_method(key=_normalize_global_integral_basis_args)
     def global_integral_basis(self, basis=None, places=None, infolevel=0, **args):
