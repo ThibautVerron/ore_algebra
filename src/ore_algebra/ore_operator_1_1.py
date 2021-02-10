@@ -1778,7 +1778,7 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
                                             raise_val_fct = raise_val_fct,
                                             infolevel=infolevel,
                                             **val_kwargs) 
-        return res
+        return basis
 
 
 
@@ -3287,7 +3287,7 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
             base = base.ring()
         # ore = ore.change_ring(base)
         x = base.gen()
-        C = base.base_ring()
+        C = base.base_ring().fraction_field()
         if f.degree() > 1:
             # Generate a unique (?) name for the number field element
             # There is certainly a better way of doing it
