@@ -3283,26 +3283,27 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         base = ore.base_ring()
         # Next lines because there is no change_ring() method for a fraction
         # field, and no ring() method for a polynomial ring...
-        if sols is None:
-            if base.is_field():
-                base = base.ring()
-                # ore = ore.change_ring(base)
-            x = base.gen()
+        if base.is_field():
+            base = base.ring()
+        # ore = ore.change_ring(base)
+        x = base.gen()
+        C = base.base_ring()
+        if f.degree() > 1:
             # Generate a unique (?) name for the number field element
             # There is certainly a better way of doing it
             ind = randint(1,10000)
             FF = NumberField(f.numerator(),"xi{}".format(ind))
             xi = FF.gen()
-            pol_ext = base.change_ring(FF)
-            ore_ext = ore.change_ring(pol_ext.fraction_field())
-            reloc = ore_ext([c(x=x+xi) for c in self.coefficients(sparse=False)])
-            if prec is None:
-                sols = reloc.generalized_series_solutions()
-            else:
-                sols = reloc.generalized_series_solutions(prec)
         else:
             FF = C
             xi = -f[0]/f[1]
+        pol_ext = base.change_ring(FF)
+        ore_ext = ore.change_ring(pol_ext.fraction_field())
+        reloc = ore_ext([c(x=x+xi) for c in self.coefficients(sparse=False)])
+        if prec is None:
+            sols = reloc.generalized_series_solutions()
+        else:
+            sols = reloc.generalized_series_solutions(prec)
         ore_ext = ore.change_ring(ore.base_ring().change_ring(FF).fraction_field())
         reloc = ore_ext([c(x=x+xi) for c in self.coefficients(sparse=False)])
         if prec is None:
