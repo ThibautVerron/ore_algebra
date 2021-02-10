@@ -338,7 +338,7 @@ class ContinuousGeneralizedSeries(RingElement):
             return
 
         ramification = ZZ(ramification)
-
+        
         # Move negative exponents to the exponential part if needed
         # TODO: Update coercions in doc
         x = parent.tail_ring().base_ring().gen()
@@ -352,10 +352,10 @@ class ContinuousGeneralizedSeries(RingElement):
 
         if val in ZZ :
             tail = tail2*x**(-val)
-            exp += val
+            exp += val/ramification
         else:
             tail = tail2
-        
+
         p = parent.tail_ring()(tail)
 
         if ramification not in ZZ or ramification <= 0:
