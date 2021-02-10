@@ -1406,7 +1406,7 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
             infolevel=0,**val_kwargs):
         if basis:
             basis = tuple(basis)
-        args = list(args.items())
+        args = list(val_kwargs.items())
         args.sort()
         args = tuple(args)
         return (x,basis,args)
@@ -1536,7 +1536,7 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
             places = [p[0] for p in places]
             places.sort()
             places = tuple(places)
-        args = list(args.items())
+        args = list(val_kwargs.items())
         args.sort()
         args = tuple(args)
         return (basis,places,args)
