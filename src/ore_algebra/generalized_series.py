@@ -353,6 +353,8 @@ class ContinuousGeneralizedSeries(RingElement):
         if val in ZZ :
             tail = tail2*x**(-val)
             exp += val
+        else:
+            tail = tail2
         
         p = parent.tail_ring()(tail)
 
@@ -1067,7 +1069,9 @@ class ContinuousGeneralizedSeries(RingElement):
         # same as __getitem__ but takes into account the polynomial part
         # TODO: Should it be merged with __getitem__?
         z = self.initial_exponent()
-        if not (b-z).is_integer():
+        try: 
+            return self[(a,ZZ(b-z))]
+        except TypeError: # the conversion to integer failed
             return 0
         else:
             try:

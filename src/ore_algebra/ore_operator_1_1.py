@@ -22,6 +22,8 @@ one generator.
 from __future__ import absolute_import, division, print_function
 
 from functools import reduce
+from random import randint
+# from warnings import resetwarnings
 
 import sage.functions.log as symbolic_log
 
@@ -30,6 +32,7 @@ from sage.arith.all import gcd, lcm, nth_prime, srange
 from sage.functions.all import floor
 from sage.matrix.constructor import matrix
 from sage.misc.all import prod, union
+from sage.misc.cachefunc import cached_method
 from sage.rings.fraction_field import FractionField_generic
 from sage.rings.rational_field import QQ
 from sage.rings.integer_ring import ZZ
@@ -1398,10 +1401,20 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
         """
         raise NotImplementedError # abstract
 
-    def local_integral_basis(self, x, basis=None,
-                             val_fct=None, raise_val_fct=None,
-                             infolevel=0,
-                             **val_kwargs):
+    def _normalize_local_integral_basis_args(
+            self,x,basis=None, val_fct=None, raise_val_fct=None,
+            infolevel=0,**val_kwargs):
+        if basis:
+            basis = tuple(basis)
+        args = list(args.items())
+        args.sort()
+        args = tuple(args)
+        return (x,basis,args)
+
+    @cached_method(key=_normalize_local_integral_basis_args)
+    def local_integral_basis(
+            self, x, basis=None, val_fct=None, raise_val_fct=None,
+            infolevel=0, **val_kwargs):
         r"""
         Compute a local integral basis at x of the vector obtained by taking the
         quotient of the parent Ore algebra by this operator.
@@ -1441,6 +1454,7 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
         print1 = print if infolevel >= 1 else lambda *a, **k: None
         print2 = print if infolevel >= 2 else lambda *a, **k: None
         print3 = print if infolevel >= 3 else lambda *a, **k: None
+        # resetwarnings()
 
         print1(" [local] Computing local basis at {}".format(x))
         
@@ -1452,6 +1466,7 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
         DD = ore.gen()
         if basis is None: basis = [DD**i for i in range(r)]
 
+        x = x.numerator()
         k = ore.base_ring()
 
         F = x.parent().base_ring()
@@ -1476,12 +1491,9 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
                     print1(" [local] Relation found: {}".format(alpha))
 
                     alpha_rep = [None for i in range(d+1)]
-                    if deg > 1: # Should be harmless even otherwise (then Fvar=1), if we also force the cast to k
-                        for i in range(d+1):
-                            alpha_rep[i] = sum(alpha[i][j]*Fvar**j for j in range(deg))
-                    else:
-                        for i in range(d+1):
-                            alpha_rep[i] = k(alpha[i])
+                    for i in range(d+1):
+                        # This is python, so sum instead of add
+                        alpha_rep[i] = sum(alpha[i][j]*Fvar**j for j in range(deg))
                     print2(" [local] In base field: {}".format(alpha_rep))
                     # __import__("pdb").set_trace()
                     
@@ -1514,8 +1526,23 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
         # TODO
         """
         raise NotImplementedError # abstract
+    
+    def _normalize_global_integral_basis_args(
+            self,basis=None, places=None, 
+            infolevel=0,**val_kwargs):
+        if basis:
+            basis = tuple(basis)
+        if places:
+            places = [p[0] for p in places]
+            places.sort()
+            places = tuple(places)
+        args = list(args.items())
+        args.sort()
+        args = tuple(args)
+        return (basis,places,args)
 
-    def global_integral_basis(self, places=None, infolevel=0, **val_kwargs):
+    @cached_method(key=_normalize_global_integral_basis_args)
+    def global_integral_basis(self, basis=None, places=None, infolevel=0, **val_kwargs):
         r"""
         Compute a global integral basis of the quotient of the ambient Ore algebra
         with this operator.
@@ -1731,18 +1758,22 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
         if places is None:
             places = self.find_candidate_places(infolevel=infolevel,**val_kwargs)
 
+        r = self.order()
+        ore = self.parent()
+        DD = ore.gen()
+        if basis is None: basis = [DD**i for i in range(r)]
+
         if len(places) == 0 :
-            return [self.parent()(1)]
+            return basis
             
-        res = None
         for p in places :
             if len(p) == 1 :
-                x = p
+                x = p[0]
                 val_fct = raise_val_fct = None
             else:
                 x, val_fct, raise_val_fct = p
                 
-            res = self.local_integral_basis(x,basis=res,
+            basis = self.local_integral_basis(x,basis=basis,
                                             val_fct = val_fct,
                                             raise_val_fct = raise_val_fct,
                                             infolevel=infolevel,
@@ -1959,50 +1990,85 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         """
         return self*self.parent().gen()
 
-    def annihilator_of_composition(self, a, solver=None):
+    def change_of_variables(self,a, solver=None, onlyself=False):
         r"""
-        Returns an operator `L` which annihilates all the functions `f(a(x))`
-        where `f` runs through the functions annihilated by ``self``.
-        The output operator is not necessarily of smallest possible order.
+        Perform the change of variable x <- a(x) in ``self``.
 
         INPUT:
 
         - ``a`` -- either an element of the base ring of the parent of ``self``,
           or an element of an algebraic extension of this ring.
         - ``solver`` (optional) -- a callable object which applied to a matrix
-          with polynomial entries returns its kernel. 
+          with polynomial entries returns its kernel.
+        - ``onlyself`` (optional) -- if True, do not compute ``conv``
 
-        EXAMPLES::
+        OUTPUT:
 
-           sage: from ore_algebra import *
-           sage: R.<x> = ZZ['x']
-           sage: K.<y> = R.fraction_field()['y']
-           sage: K.<y> = R.fraction_field().extension(y^3 - x^2*(x+1))
-           sage: A.<Dx> = OreAlgebra(R, 'Dx')
-           sage: (x*Dx-1).annihilator_of_composition(y) # ann for x^(2/3)*(x+1)^(1/3)
-           (3*x^2 + 3*x)*Dx - 3*x - 2
-           sage: (x*Dx-1).annihilator_of_composition(y + 2*x) # ann for 2*x + x^(2/3)*(x+1)^(1/3)
-           (3*x^3 + 3*x^2)*Dx^2 - 2*x*Dx + 2
-           sage: (Dx - 1).annihilator_of_composition(y) # ann for exp(x^(2/3)*(x+1)^(1/3))
-           (-243*x^6 - 810*x^5 - 999*x^4 - 540*x^3 - 108*x^2)*Dx^3 + (-162*x^3 - 270*x^2 - 108*x)*Dx^2 + (162*x^2 + 180*x + 12)*Dx + 243*x^6 + 810*x^5 + 1080*x^4 + 720*x^3 + 240*x^2 + 32*x
+        - ``L`` -- an Ore operator such that for all ``f`` annihilated by ``self``, ``L`` annihilates ``f \circ a``.
+        - ``conv`` -- a function which takes as input an Ore operator ``A`` and returns an Ore operator ``B`` such that for all functions ``f`` annihilated by ``f``, ``A(f)(a(x)) = B(f(a(x)))``.
+
+        EXAMPLES:
+
+            sage: from ore_algebra import *
+            sage: R.<x> = ZZ['x']
+            sage: A.<Dx> = OreAlgebra(R, 'Dx')
+            sage: L = x*Dx^2 + 1
+            sage: LL, conv = L.change_of_variables(x+1)
+            sage: print(LL)
+            (x + 1)*Dx^2 + 1
+            sage: print(conv(Dx))
+            Dx
+            sage: print(conv(x*Dx))
+            (x + 1)*Dx
+            sage: print(conv(L))
+            0
+            sage: LL, conv = L.change_of_variables(1/x)
+            sage: print(LL)
+            -x^3*Dx^2 - 2*x^2*Dx - 1
+            sage: print(conv(Dx))
+            -x^2*Dx
+            sage: print(conv(x*Dx))
+            -x*Dx
+            sage: print(conv(conv(x*Dx))) # identity since 1/1/x = 1
+            x*Dx
+            sage: LL, conv = L.change_of_variables(1+x^2)
+            sage: print(LL)
+            (-x^3 - x)*Dx^2 + (x^2 + 1)*Dx - 4*x^3
+            sage: print(conv(Dx))
+            1/(2*x)*Dx
+            sage: print(conv(x*Dx))
+            ((x^2 + 1)/(2*x))*Dx
         
         """
-
+        
         A = self.parent(); K = A.base_ring().fraction_field(); A = A.change_ring(K); R = K['Y']
         if solver == None:
             solver = A._solver(K)
 
         if self == A.one() or a == K.gen():
-            return self
+            return self, lambda x:x
         elif a in K.ring() and K.ring()(a).degree() == 1:
             # special handling for easy case  a == alpha*x + beta
             a = K.ring()(a); alpha, beta = a[1], a[0]
             x = self.base_ring().gen(); D = A.associated_commutative_algebra().gen()
             L = A(self.polynomial()(D/alpha).map_coefficients(lambda p: p(alpha*x + beta)))
-            return L.normalize()
+
+            if not onlyself:
+                def make_conv_fun(self,a,alpha,beta,D,Dif):
+                    def conv_fun(A):
+                        A = A.quo_rem(self)[1]
+                        return Dif(A.polynomial()(D/alpha).map_coefficients(lambda p: p(alpha*x + beta)))
+                    return conv_fun
+                conv_fun = make_conv_fun(self,a,alpha,beta,D,A)
+            else:
+                conv_fun = None
+            return L.normalize(), conv_fun
         elif a in K:
             minpoly = R.gen() - K(a)
         else:
+            if not onlyself:
+                # FIXME
+                raise NotImplementedError("Conversion function not implemented for elements of algebraic extensions")
             try:
                 minpoly = R(a.minpoly()).monic()
             except:
@@ -2040,8 +2106,57 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
             mat.append([ q for p in Dkfa for q in p.padded_list(d) ])
             sol = solver(Matrix(K, mat).transpose())
 
-        return self.parent()(list(sol[0]))
+        LL = self.parent()(list(sol[0]))
 
+        if not onlyself:
+            from sage.modules.free_module_element import vector
+            conv_mtx = Matrix(K,mat[:-1]).transpose().inverse()
+            def make_conv_fun(self,conv_mtx,a,Dif):
+                def conv_fun(A):
+                    l = conv_mtx.ncols()
+                    A = A.quo_rem(self)[1]
+                    ring = A.parent().base_ring().fraction_field()
+                    # Dif = Dif.change_ring(ring)
+                    coefs = (A.coefficients(sparse=False)+[0]*l)[:l]
+                    coefs = [ring(c)(a) for c in coefs]
+                    return Dif((conv_mtx*vector(coefs)).list())
+                return conv_fun
+            conv_fun = make_conv_fun(self,conv_mtx,a,A)
+        else:
+            conv_fun = None
+        return LL,conv_fun
+
+    def annihilator_of_composition(self, a, solver=None):
+        r"""
+        Returns an operator `L` which annihilates all the functions `f(a(x))`
+        where `f` runs through the functions annihilated by ``self``.
+        The output operator is not necessarily of smallest possible order.
+
+        INPUT:
+
+        - ``a`` -- either an element of the base ring of the parent of ``self``,
+          or an element of an algebraic extension of this ring.
+        - ``solver`` (optional) -- a callable object which applied to a matrix
+          with polynomial entries returns its kernel. 
+
+        EXAMPLES::
+
+           sage: from ore_algebra import *
+           sage: R.<x> = ZZ['x']
+           sage: K.<y> = R.fraction_field()['y']
+           sage: K.<y> = R.fraction_field().extension(y^3 - x^2*(x+1))
+           sage: A.<Dx> = OreAlgebra(R, 'Dx')
+           sage: (x*Dx-1).annihilator_of_composition(y) # ann for x^(2/3)*(x+1)^(1/3)
+           (3*x^2 + 3*x)*Dx - 3*x - 2
+           sage: (x*Dx-1).annihilator_of_composition(y + 2*x) # ann for 2*x + x^(2/3)*(x+1)^(1/3)
+           (3*x^3 + 3*x^2)*Dx^2 - 2*x*Dx + 2
+           sage: (Dx - 1).annihilator_of_composition(y) # ann for exp(x^(2/3)*(x+1)^(1/3))
+           (-243*x^6 - 810*x^5 - 999*x^4 - 540*x^3 - 108*x^2)*Dx^3 + (-162*x^3 - 270*x^2 - 108*x)*Dx^2 + (162*x^2 + 180*x + 12)*Dx + 243*x^6 + 810*x^5 + 1080*x^4 + 720*x^3 + 240*x^2 + 32*x
+        
+        """
+        return self.change_of_variables(a, onlyself=True)[0]
+    
+        
     def power_series_solutions(self, n=5):
         r"""
         Computes the first few terms of the power series solutions of this operator.
@@ -3165,11 +3280,26 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
 
         r = self.order()
         ore = self.parent()
-        x = ore.base_ring().gen()
-        C = ore.base_ring().base_ring()
-        if f.degree() > 1:
-            FF = NumberField(f,"xi")
+        base = ore.base_ring()
+        # Next lines because there is no change_ring() method for a fraction
+        # field, and no ring() method for a polynomial ring...
+        if sols is None:
+            if base.is_field():
+                base = base.ring()
+                # ore = ore.change_ring(base)
+            x = base.gen()
+            # Generate a unique (?) name for the number field element
+            # There is certainly a better way of doing it
+            ind = randint(1,10000)
+            FF = NumberField(f.numerator(),"xi{}".format(ind))
             xi = FF.gen()
+            pol_ext = base.change_ring(FF)
+            ore_ext = ore.change_ring(pol_ext.fraction_field())
+            reloc = ore_ext([c(x=x+xi) for c in self.coefficients(sparse=False)])
+            if prec is None:
+                sols = reloc.generalized_series_solutions()
+            else:
+                sols = reloc.generalized_series_solutions(prec)
         else:
             FF = C
             xi = -f[0]/f[1]
@@ -3217,14 +3347,14 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
                     if infolevel >= 2:
                         print(" [raise_val_fct] Processing term x^({}) log(x)^{}".format(t[1],t[0]))
                     for i in range(len(ops)):
-                        for s in ss[i]:
-                            mtx[i].append(s.coefficient(*t))
+                        for j in range(len(sols)):
+                            mtx[i].append(ss[i][j].coefficient(*t))
                     if infolevel >= 2:
                         print(" [raise_val_fct] Current matrix:\n{}".format(mtx))
 
                 M = matrix(mtx)
                 K = M.left_kernel().basis()
-                if K:
+                if K: 
                     return (1/K[0][-1])*K[0]
                 else:
                     return None
@@ -3234,14 +3364,14 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         val_fct, raise_val_fct = get_functions(xi,sols,x,ore_ext)
         return f,val_fct, raise_val_fct
 
-    def find_candidate_places(self, infolevel=0, iota=None):
-        lr = self.coefficients()[-1]
+    def find_candidate_places(self, infolevel=0, iota=None, prec=5):
+        lr = self.coefficients()[-1]*self.denominator()
         fact = list(lr.factor())
         places = []
         for f,m in fact:
-            places.append(self._make_valuation_place(f,prec=m+1,
-                                                     infolevel=infolevel,
-                                                     iota=None))
+            if f.degree() > 0:
+                places.append(self._make_valuation_place(
+                    f,prec=prec, infolevel=infolevel, iota=None))
         return places
 
     def value_function(self, op, place, iota=None):
@@ -3250,9 +3380,98 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
 
     def raise_value(self, basis, place, dim=None, iota=None):
         fct = self._make_valuation_place(place,iota=iota)[2]
-        return fct(basis, place, dim)
+        return fct(basis, place, dim, infolevel = infolevel)
 
+    @cached_method
+    def local_integral_basis_at_infinity(self, basis=None, iota=None,
+                                         infolevel=0):
+        x = self.base_ring().gen()
+        Linf, conv = self.change_of_variables(1/x)
+        f,v,rv = Linf._make_valuation_place(x, iota=iota)
+        if basis:
+            basis = [conv(b) for b in basis]
+        wwinf = Linf.local_integral_basis(f, val_fct=v, raise_val_fct=rv, basis=basis, infolevel=infolevel)
+        vv = [conv(w) for w in wwinf]
+        return vv
+
+    def _normalize_basis_at_infinity(self,ww,vv):
+        r = self.order()
+        x = self.base_ring().gen()
+        from sage.matrix.constructor import matrix
+
+        def pad_list(ll,d):
+            # add 0s to reach length d
+            return ll+[0]*(d - len(ll))
+        
+        def tau_value(f):
+            # smallest t st x^t f can be evaluated at infinity
+            if f == 0:
+                return infinity
+            if f in QQ:
+                return 0
+            else:
+                num = f.numerator().degree()
+                den = f.denominator().degree()
+                return den - num
+
+        def eval_inf(f):
+            # value of f at infinity
+            if f in QQ:
+                return f
+            else:
+                if f.denominator().degree() > f.numerator().degree():
+                    return 0
+                elif f.denominator().degree() < f.numerator().degree():
+                    raise ZeroDivisionError
+                else:
+                    return f.numerator().leading_coefficient() / f.denominator().leading_coefficient()
+
+        D_to_vv = matrix([pad_list(b.coefficients(sparse=False),r)
+                          for b in vv]).inverse()
+
+        init = True
+        while init or B.determinant() == 0:
+            if init:
+                init = False
+            else:
+                a = B.kernel().basis()[0]
+                l = min([i for i in range(r) if a[i] != 0],
+                        key = lambda i: tau[i]);
+                ww[l] = sum(a[i]*x**(tau[i]-tau[l])*ww[i] for i in range(r))
+            
+            ww_to_D = matrix([pad_list(b.coefficients(sparse=False),r)
+                              for b in ww])
+            mm = ww_to_D * D_to_vv
+            # print(mm)
+            tau = [min(tau_value(m) for m in row) for row in mm.rows()]
+            B = matrix([[eval_inf(x**tau[i]*mm[i,j]) for j in range(r)]
+                    for i in range(r)])
+            # print(tau)
+            
+        return ww, tau
     
+    
+    def normal_global_integral_basis(self,basis=None, iota=None, infolevel=0):
+        ww = self.global_integral_basis(basis=basis,iota=iota, infolevel=infolevel)
+        vv = self.local_integral_basis_at_infinity(iota=iota, infolevel=infolevel)
+
+        ww, _ = self._normalize_basis_at_infinity(ww,vv)
+        return ww
+        
+    def quasiconstants(self, iota=None, infolevel=0):
+        ww = self.global_integral_basis(iota=iota, infolevel=infolevel)
+        vv = self.local_integral_basis_at_infinity(iota=iota, infolevel=infolevel)
+
+        ww, tau = self._normalize_basis_at_infinity(ww,vv)
+        x = self.base_ring().gen()
+        res = []
+        for i in range(len(ww)):
+            if tau[i] >= 0:
+                for j in range(tau[i]+1):
+                    res.append(x**j * ww[i])
+        return res
+        
+        
     
     
 #############################################################################################################
@@ -4408,7 +4627,7 @@ class UnivariateRecurrenceOperatorOverUnivariateRing(UnivariateOreOperatorOverUn
         return res
     
     
-    def find_candidate_places(self, Zmax = None, infolevel=0):
+    def find_candidate_places(self, Zmax = None, infolevel=0, prec=5):
         # TODO doc
 
         # Helpers
@@ -4461,7 +4680,7 @@ class UnivariateRecurrenceOperatorOverUnivariateRing(UnivariateOreOperatorOverUn
                 # TODO: Should we also update Nmin if Zmax < Nmax?
             print1("Nmin={} Nmax={}".format(Nmin,Nmax))
 
-            places += self._make_valuation_places(f, Nmin, Nmax, prec=m+1,
+            places += self._make_valuation_places(f, Nmin, Nmax, prec=prec,
                                                   infolevel=infolevel)
             # TODO: is +1 needed?
 
@@ -4471,7 +4690,7 @@ class UnivariateRecurrenceOperatorOverUnivariateRing(UnivariateOreOperatorOverUn
         val = self._make_valuation_places(place,0,0)[0][1]
         return val(op,place)
 
-    def raise_value(self, basis, place, dim):
+    def raise_value(self, basis, place, dim, infolevel = 0):
         fct = self._make_valuation_places(place,0,0)[0][2]
         return fct(basis, place, dim)
     
