@@ -3304,7 +3304,7 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
             sols = reloc.generalized_series_solutions()
         else:
             sols = reloc.generalized_series_solutions(prec)
-        ore_ext = ore.change_ring(ore.base_ring().change_ring(FF).fraction_field())
+        ore_ext = ore.change_ring(base.change_ring(FF).fraction_field())
         reloc = ore_ext([c(x=x+xi) for c in self.coefficients(sparse=False)])
         if prec is None:
             sols = reloc.generalized_series_solutions(exp=False)
@@ -3366,7 +3366,7 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         return f,val_fct, raise_val_fct
 
     def find_candidate_places(self, infolevel=0, iota=None, prec=5):
-        lr = self.coefficients()[-1]*self.denominator()
+        lr = (self.coefficients()[-1]*self.denominator()).numerator()
         fact = list(lr.factor())
         places = []
         for f,m in fact:
@@ -3388,7 +3388,7 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
                                          infolevel=0):
         x = self.base_ring().gen()
         Linf, conv = self.change_of_variables(1/x)
-        f,v,rv = Linf._make_valuation_place(x, iota=iota)
+        f,v,rv = Linf._make_valuation_place(x.numerator(), iota=iota)
         if basis:
             basis = [conv(b) for b in basis]
         wwinf = Linf.local_integral_basis(f, val_fct=v, raise_val_fct=rv, basis=basis, infolevel=infolevel)
