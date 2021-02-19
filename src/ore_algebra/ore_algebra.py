@@ -1691,8 +1691,8 @@ class OreAlgebra_generic(UniqueRepresentation, Algebra):
         solver = nullspace.kronecker(nullspace.gauss()) # good for ZZ[x...] and GF(p)[x...]
         if B is QQ:
             solver = nullspace.clear(solver) # good for QQ[x...]
-        elif is_NumberField(B):
-            solver = nullspace.galois(solver) # good for QQ(alpha)[x...]
+        # elif is_NumberField(B):
+        #     solver = nullspace.galois(solver) # good for QQ(alpha)[x...]
         elif not (B is ZZ or B.characteristic() > 0):
             solver = nullspace.sage_native # for lack of better ideas
 
