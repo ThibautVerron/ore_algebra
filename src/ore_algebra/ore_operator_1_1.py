@@ -3314,8 +3314,12 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         # if any(True for s in sols if s.ramification()>1):
         #     raise NotImplementedError("Some generalized series solutions have ramification")
 
-        if len(sols) < r or any(not s.is_fuchsian(C) for s in sols):
-            raise ValueError("The operator has non Fuchsian series solutions")
+        if any(not s.is_fuchsian(C) for s in sols):
+            raise ValueError(
+                "The operator has non Fuchsian series solutions\n"
+                + "Missing roots: {}".format(
+                    [s.initial_exponent().minpoly() for s in sols
+                     if s.initial_exponent() not in C]))
         
         # Capture the objects
         def get_functions(xi,sols,x,ore_ext):
