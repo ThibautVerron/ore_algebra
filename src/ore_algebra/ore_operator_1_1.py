@@ -3399,7 +3399,7 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         vv = [conv(w) for w in wwinf]
         return vv
 
-    def _normalize_basis_at_infinity(self,ww,vv):
+    def _normalize_basis_at_infinity(self,ww,vv,infolevel=0):
         r = self.order()
         x = self.base_ring().gen()
         from sage.matrix.constructor import matrix
@@ -3449,6 +3449,8 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
             mm = ww_to_D * D_to_vv
             # print(mm)
             tau = [min(tau_value(m) for m in row) for row in mm.rows()]
+            if infolevel >= 1:
+                print("[normal] tau={}".format(tau))
             B = matrix([[eval_inf(x**tau[i]*mm[i,j]) for j in range(r)]
                     for i in range(r)])
             # print(tau)
@@ -3456,18 +3458,18 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         return ww, tau
     
     
-    def normal_global_integral_basis(self,basis=None, iota=None, infolevel=0):
-        ww = self.global_integral_basis(basis=basis,iota=iota, infolevel=infolevel)
+    def normal_global_integral_basis(self,basis=None, places=None, iota=None, infolevel=0):
+        ww = self.global_integral_basis(basis=basis,places=places,iota=iota, infolevel=infolevel)
         vv = self.local_integral_basis_at_infinity(iota=iota, infolevel=infolevel)
 
         ww, _ = self._normalize_basis_at_infinity(ww,vv)
         return ww
         
-    def quasiconstants(self, iota=None, infolevel=0):
-        ww = self.global_integral_basis(iota=iota, infolevel=infolevel)
+    def quasiconstants(self, places=None, iota=None, infolevel=0):
+        ww = self.global_integral_basis(places=places, iota=iota, infolevel=infolevel)
         vv = self.local_integral_basis_at_infinity(iota=iota, infolevel=infolevel)
 
-        ww, tau = self._normalize_basis_at_infinity(ww,vv)
+        ww, tau = self._normalize_basis_at_infinity(ww,vv,infolevel=infolevel)
         x = self.base_ring().gen()
         res = []
         for i in range(len(ww)):
