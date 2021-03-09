@@ -52,7 +52,7 @@ from sage.structure.formal_sum import FormalSum, FormalSums
 from sage.symbolic.all import SR
 
 from .tools import clear_denominators, q_log, make_factor_iterator, shift_factor, _vect_val_fct, _vect_elim_fct, roots_at_integer_distance
-from .ore_algebra import OreAlgebra_generic
+from .ore_algebra import OreAlgebra_generic, OreAlgebra
 from .ore_operator import OreOperator, UnivariateOreOperator
 from .generalized_series import GeneralizedSeriesMonoid, _generalized_series_shift_quotient, _binomial
 
@@ -1481,14 +1481,16 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
             v = val_fct(basis[d],place=x,**val_kwargs)
             print1(" [local] Valuation: {}".format(v))
             res.append(x**(-v) * basis[d])
-            print1(" [local] Basis element after normalizing: {}".format(res[d]))
+            print2(" [local] Basis element after normalizing: {}".format(res[d]))
             done = False
             while not done:
+                # print1(" [local] Valuation: {}".format(val_fct(res[d],place=x,**val_kwargs)))
                 alpha = raise_val_fct(res,place=x,dim=r,infolevel=infolevel,**val_kwargs)
                 if alpha is None:
                     done = True
                 else:
-                    print1(" [local] Relation found: {}".format(alpha))
+                    print1(" [local] Relation found")
+                    print2(" [local] Relation: {}".format(alpha))
 
                     alpha_rep = [None for i in range(d+1)]
                     for i in range(d+1):
@@ -1499,7 +1501,7 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
                     
                     res[d] = sum(alpha_rep[i]*res[i] for i in range(d+1))
                     res[d] = x**(- val_fct(res[d],place=x,**val_kwargs))*res[d]
-                    print1(" [local] Basis element after combination: {}".format(res[d]))
+                    print2(" [local] Basis element after combination: {}".format(res[d]))
         return res
 
     def find_candidate_places(self, **kwargs):
@@ -1529,7 +1531,7 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
     
     def _normalize_global_integral_basis_args(
             self,basis=None, places=None, 
-            infolevel=0,**val_kwargs):
+            infolevel=0,solver=None,**val_kwargs):
         if basis:
             basis = tuple(basis)
         if places:
@@ -1542,7 +1544,8 @@ class UnivariateOreOperatorOverUnivariateRing(UnivariateOreOperator):
         return (basis,places,args)
 
     @cached_method(key=_normalize_global_integral_basis_args)
-    def global_integral_basis(self, basis=None, places=None, infolevel=0, **val_kwargs):
+    def global_integral_basis(self, basis=None, places=None, infolevel=0,
+                              **val_kwargs):
         r"""
         Compute a global integral basis of the quotient of the ambient Ore algebra
         with this operator.
@@ -3299,6 +3302,8 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
             xi = -f[0]/f[1]
         pol_ext = base.change_ring(FF)
         ore_ext = ore.change_ring(pol_ext.fraction_field())
+        # FIXME: with the change_of_variables() method we could handle
+        # the place at infinity directly here
         reloc = ore_ext([c(x=x+xi) for c in self.coefficients(sparse=False)])
         if prec is None:
             sols = reloc.generalized_series_solutions()
@@ -3325,17 +3330,23 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         def get_functions(xi,sols,x,ore_ext):
             # In both functions the second argument `place` is ignored because
             # captured
-            def val_fct(op,place,base=C, iota=None):
+            def val_fct(op,place,base=C, iota=None,**kwargs):
                 op = ore_ext([c(x=x+xi)
                               for c in op.coefficients(sparse=False)])
+                if op.order() >= min(s.prec() for s in sols):
+                    raise RuntimeError("Insufficient precision")
                 vect = [op(s).valuation(base=C,iota=iota) for s in sols]
                 return min(vect)
             def raise_val_fct(ops,place,dim=None,base=C,iota=None,
-                              infolevel=0):
+                              infolevel=0,**kwargs):
                 # TODO: Is it okay that we don't use dim?
                 ops = [ore_ext([c(x=x+xi)
                                 for c in op.coefficients(sparse=False)])
                        for op in ops]
+                if (max(op.order() for op in ops)
+                    >= min(s.prec() for s in sols)):
+                    raise RuntimeError("Insufficient precision")
+
                 ss = [[op(s) for s in sols] for op in ops]
                 if infolevel >= 2: print(ss)
                 cands = set()
@@ -3388,21 +3399,28 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
         return fct(basis, place, dim, infolevel = infolevel)
 
     @cached_method
-    def local_integral_basis_at_infinity(self, basis=None, iota=None,
+    def local_integral_basis_at_infinity(self, basis=None,
+                                         iota=None,prec=None,
                                          infolevel=0):
         x = self.base_ring().gen()
         Linf, conv = self.change_of_variables(1/x)
-        f,v,rv = Linf._make_valuation_place(x.numerator(), iota=iota)
+        f,v,rv = Linf._make_valuation_place(x.numerator(), iota=iota,
+                                            prec=prec, infolevel=infolevel)
         if basis:
             basis = [conv(b) for b in basis]
-        wwinf = Linf.local_integral_basis(f, val_fct=v, raise_val_fct=rv, basis=basis, infolevel=infolevel)
+        wwinf = Linf.local_integral_basis(f, val_fct=v, raise_val_fct=rv, basis=basis, infolevel=infolevel, prec=prec)
         vv = [conv(w) for w in wwinf]
         return vv
 
-    def _normalize_basis_at_infinity(self,ww,vv,infolevel=0):
+    def _normalize_basis_at_infinity(self,ww,vv,infolevel=0,solver=None,modulus=0):
         r = self.order()
-        x = self.base_ring().gen()
+        x = ww[0].base_ring().gen()
         from sage.matrix.constructor import matrix
+
+        # if solver is None:
+        #     solver = nullspace.sage_native
+        # FIXME below
+        leftsolver = lambda x: solver(x.transpose())
 
         def pad_list(ll,d):
             # add 0s to reach length d
@@ -3435,11 +3453,13 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
                           for b in vv]).inverse()
 
         init = True
-        while init or B.determinant() == 0:
+        while init or K: #B.determinant() == 0:
             if init:
                 init = False
             else:
-                a = B.kernel().basis()[0]
+                a = K[0]
+                # if infolevel >= 2:
+                #     print("[normal] matrix:\n{}\n[normal] kernel vect: {}".format(B,a))
                 l = min([i for i in range(r) if a[i] != 0],
                         key = lambda i: tau[i]);
                 ww[l] = sum(a[i]*x**(tau[i]-tau[l])*ww[i] for i in range(r))
@@ -3454,23 +3474,37 @@ class UnivariateDifferentialOperatorOverUnivariateRing(UnivariateOreOperatorOver
             B = matrix([[eval_inf(x**tau[i]*mm[i,j]) for j in range(r)]
                     for i in range(r)])
             # print(tau)
-            
+            K = B.kernel().basis()
+
         return ww, tau
     
     
-    def normal_global_integral_basis(self,basis=None, places=None, iota=None, infolevel=0):
+    def normal_global_integral_basis(self,basis=None, places=None, iota=None, infolevel=0,solver=None):
         ww = self.global_integral_basis(basis=basis,places=places,iota=iota, infolevel=infolevel)
         vv = self.local_integral_basis_at_infinity(iota=iota, infolevel=infolevel)
 
-        ww, _ = self._normalize_basis_at_infinity(ww,vv)
+        ww, _ = self._normalize_basis_at_infinity(ww,vv,solver=solver)
         return ww
         
-    def quasiconstants(self, places=None, iota=None, infolevel=0):
-        ww = self.global_integral_basis(places=places, iota=iota, infolevel=infolevel)
-        vv = self.local_integral_basis_at_infinity(iota=iota, infolevel=infolevel)
+    def quasiconstants(self, places=None, solver=None, modulus=0, infolevel=0, **val_kwargs):
+        ww = self.global_integral_basis(places=places, infolevel=infolevel, **val_kwargs)
+        vv = self.local_integral_basis_at_infinity(infolevel=infolevel,**val_kwargs)
 
-        ww, tau = self._normalize_basis_at_infinity(ww,vv,infolevel=infolevel)
-        x = self.base_ring().gen()
+        A = self.parent()
+        if modulus:
+            from sage.rings.finite_rings.finite_field_constructor import GF
+            Pmod = (A.base_ring().ring().change_ring(GF(modulus))).fraction_field()
+            DifMod = OreAlgebra(Pmod,"Dx")
+            ww = [DifMod([Pmod(c) for c in w.coefficients(sparse=False)])
+                  for w in ww]
+            vv = [DifMod([Pmod(c) for c in v.coefficients(sparse=False)])
+                  for v in vv]
+        
+        ww, tau = self._normalize_basis_at_infinity(ww,vv,
+                                                    infolevel=infolevel,
+                                                    solver=solver,
+                                                    modulus=modulus)
+        x = ww[0].base_ring().gen()
         res = []
         for i in range(len(ww)):
             if tau[i] >= 0:
