@@ -1092,6 +1092,17 @@ class ContinuousGeneralizedSeries(RingElement):
     def is_fuchsian(self,base):
         r"""
         Test whether this series is Fuchsian over the constant field `base`.
+
+        EXAMPLES::
+
+          sage: from ore_algebra import *
+          sage: R.<x> = QQ[]
+          sage: A.<Dx> = OreAlgebra(R)
+          sage: L = (x^2*Dx+1)
+          sage: s = L.generalized_series_solutions()[0]; s
+          exp(x^(-1))
+          sage: s.is_fuchsian(QQ) # FIXME!
+          False
         """
         z = self.initial_exponent()
         return z in base
